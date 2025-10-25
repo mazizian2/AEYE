@@ -1,0 +1,10 @@
+crewai
+langgraph
+langchain
+langchain_openai
+langchain_community
+rapidfuzz
+fastapi
+python-socketio
+pydantic
+jinja2

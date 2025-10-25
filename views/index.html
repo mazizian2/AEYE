@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>چت بات شبکیه</title>
+    <link rel="stylesheet" href="/assets/css/main.css">
+    <style>
+        :root {
+            --bg: #0f172a;
+            --card: #111827;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --accent: #22c55e;
+            --ring: #334155;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: #f8fafc;
+                --card: #ffffff;
+                --text: #0f172a;
+                --muted: #64748b;
+                --accent: #16a34a;
+                --ring: #e5e7eb;
+            }
+        }
+
+        body {
+            margin: 0;
+
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            padding: 16px;
+            font-weight: 700;
+            font-size: 1.3rem;
+            text-align: center;
+            border-bottom: 1px solid var(--ring);
+        }
+
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-card {
+            min-width: 300px;
+            background: var(--card);
+            border: 1px solid var(--ring);
+            border-radius: 16px;
+            padding: 16px;
+            max-width: 70%;
+            position: relative;
+            line-height: 1.6;
+            word-break: break-word;
+        }
+
+        .chat-card.user {
+            align-self: flex-start;
+            border-color: #2563eb;
+        }
+
+        .chat-card.ai {
+            align-self: flex-end;
+            border-color: var(--accent);
+        }
+
+        .chat-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: grid;
+            place-items: center;
+            color: #fff;
+            font-weight: 700;
+        }
+
+        .avatar.user {
+            background: #2563eb;
+        }
+
+        .avatar.ai {
+            background: var(--accent);
+        }
+
+        .meta {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .name {
+            font-weight: 700;
+        }
+
+        .date {
+            font-size: .8rem;
+            color: var(--muted);
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: 28px;
+            height: 28px;
+            display: grid;
+            place-items: center;
+            border-radius: 8px;
+            border: 1px solid var(--ring);
+            background: transparent;
+            cursor: pointer;
+            transition: .2s;
+        }
+
+        .copy-btn:hover {
+            background: rgba(148, 163, 184, .12);
+        }
+
+        .copy-btn:active {
+            transform: scale(.95);
+        }
+
+        .copy-btn svg {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+            color: var(--muted);
+        }
+
+        .toast {
+            position: fixed;
+            inset-inline: 0;
+            bottom: 18px;
+            width: fit-content;
+            margin-inline: auto;
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--ring);
+            padding: 10px 14px;
+            border-radius: 999px;
+            font-size: .9rem;
+            display: none;
+            gap: 8px;
+            align-items: center;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, .24);
+        }
+
+        .toast.show {
+            display: flex;
+            animation: fade .12s ease-out;
+        }
+
+        @keyframes fade {
+            from {
+                opacity: 0;
+                transform: translateY(6px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .input-area {
+            display: flex;
+            padding: 12px;
+            border-top: 1px solid var(--ring);
+            gap: 8px;
+        }
+
+        .input-area input {
+            flex: 1;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--ring);
+            background: var(--card);
+            color: var(--text);
+        }
+
+        .input-area button {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 12px;
+            background: var(--accent);
+            color: #fff;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .input-area button:hover {
+            opacity: .9;
+        }
+    </style>
+</head>
+<body>
+<header>چت بات شبکیه</header>
+
+<div class="chat-container" id="chat">
+</div>
+
+<div class="input-area">
+    <input type="text" id="msgInput" placeholder="پیام خود را وارد کنید...">
+    <button onclick="sendMessage()">ارسال</button>
+</div>
+
+<div class="toast" id="toast">✅ کپی شد!</div>
+<script src="https://code.jquery.com/jquery-3.7.1.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script>
+    let activeSendMessage = true;
+
+    // نمایش نوتیفیکیشن کپی
+    function showToast(msg = "کپی شد!") {
+        const t = document.getElementById('toast');
+        t.textContent = "✅ " + msg;
+        t.classList.add('show');
+        clearTimeout(showToast._t);
+        showToast._t = setTimeout(() => t.classList.remove('show'), 1400);
+    }
+
+    // اضافه کردن عملکرد کپی به همه پیام‌ها
+    function initCopyButtons() {
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.onclick = function () {
+                const card = btn.closest('.chat-card');
+                const text = card.dataset.messageText || card.querySelector('p').innerText;
+                navigator.clipboard.writeText(text).then(() => showToast("متن پیام کپی شد"));
+            }
+        });
+    }
+
+    // ارسال پیام جدید
+    function sendMessage() {
+        const text = $("#msgInput").val().trim();
+        if (activeSendMessage && text !== '') {
+            activeSendMessage = false;
+            $('#myButton').prop('disabled', true);
+            socket.emit("message", {room: roomId, msg: text});
+            $("#msgInput").val("")
+        }
+
+    }
+
+    // افزودن پیام به چت
+    function addMessage(data) {
+        if (data.role == 'assistant') {
+            activeSendMessage = true;
+            $('#myButton').prop('disabled', false);
+        }
+        const chat = document.getElementById('chat');
+        const article = document.createElement('article');
+        // نقش کاربر: assistant => ai، user => user
+        const type = data.role === 'assistant' ? 'ai' : 'user';
+        article.className = 'chat-card ' + type;
+        article.dataset.messageText = data.content;
+        article.dataset.messageId = data.id; // اگر نیاز به شناسایی پیام باشد
+        article.innerHTML = `
+    <div class="chat-header">
+      <div class="avatar ${type}">${type === 'user' ? 'م' : 'چ'}</div>
+      <div class="meta">
+        <div class="name">${type === 'user' ? 'کاربر' : 'شبکیه'}</div>
+        <time class="date">${new Date(data.timestamp).toLocaleTimeString('fa-IR', {hour: '2-digit', minute: '2-digit'})}</time>
+      </div>
+    </div>
+    <p>${data.content}</p>
+    <button class="copy-btn" aria-label="کپی متن">
+      <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v12h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+    </button>
+  `;
+        chat.appendChild(article);
+        article.scrollIntoView({behavior: 'smooth'});
+        initCopyButtons();
+    }
+
+    // فعالسازی اولیه کپی
+    initCopyButtons();
+</script>
+<script>
+    const roomId = "mehdi";
+    const socket = io("/", {transports: ["websocket"]});
+
+    // function sendMessage(textMessage) {
+    //     socket.emit("message", {room: roomId, msg: textMessage});
+    // }
+    $(document).ready(function () {
+
+        socket.on("connect", () => {
+            console.log("✅ Connected:", socket.id);
+            // پیوستن به Room
+            socket.emit("join", {room: roomId});
+        });
+
+        socket.on(`room_${roomId}`, (data) => {
+            console.log("data>>>:", data)
+
+            addMessage(data);
+        });
+
+    })
+</script>
+</body>
+</html>

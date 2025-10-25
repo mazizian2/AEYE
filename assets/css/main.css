@@ -1,0 +1,11 @@
+@font-face {
+    font-family: 'IRANSans';
+    src: url('../fonts/IRANSans.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
+/* استفاده از فونت در کل صفحه */
+body {
+    font-family: 'IRANSans', sans-serif;
+}
