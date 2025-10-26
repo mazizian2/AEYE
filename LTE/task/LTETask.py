@@ -1,9 +1,7 @@
 from crewai import Task
 import json
-from shabak.LTE.agent.LTEAgent import  greeting_responder_agent, help_internet_agent, \
-    context_switch_agent, request_collect_user_info_agent, LTE_Analyst, LTE_detect, detect_buy_service_agent, \
-    unknown_agent, detect_user_info_agent, user_info_display_agent, detect_select_account_agent, ask_witch_user_agent,collect_user_info_agent
-from shabak.LTE.general.tools import OUTPUT_HTML
+from LTE.agent.LTEAgent import  support_agent,request_collect_user_info_agent, LTE_Analyst, LTE_detect, detect_user_info_agent, detect_select_account_agent, collect_user_info_agent
+from general.tools import OUTPUT_HTML
 from datetime import datetime
 
 INTENTS = [
@@ -27,35 +25,6 @@ SUBINTENTS = [
 ]
 
 
-def create_greeting_response_task(user_message, user_info=None):
-    if user_info:
-        description = (
-            f"پیام کاربر: {user_message}\n"
-            f"اطلاعات کاربر: {user_info}\n"
-            "یک پاسخ گرم و صمیمی به فارسی بده که:\n"
-            "1. جواب احوال‌پرسی کاربر را با لحن دوستانه بده.\n"
-            "2. از نام کاربر در پیام استفاده کن تا صمیمی‌تر شود.\n"
-            "3. برند شبکیه را کوتاه و غیرمستقیم یادآوری کن (مثلاً در قالب خوشحال بودن از حضورش).\n"
-            "4. قابلیت‌ها را ذکر نکن، فقط تاکید کن آماده‌ای هر کمکی لازم داشت انجام بدهی.\n"
-            f"{OUTPUT_HTML}"
-        )
-    else:
-        description = (
-            f"پیام کاربر: {user_message}\n"
-            "یک پاسخ گرم و صمیمی به فارسی بده که:\n"
-            "1. جواب احوال‌پرسی کاربر را با لحن دوستانه بده.\n"
-            "2. برند شبکیه را به شکلی مثبت و ماندگار معرفی کن.\n"
-            "3. قابلیت‌های اصلی شبکیه را ذکر کن (پشتیبانی اینترنت، خرید و ارتقاء سرویس، گزارش خرابی).\n"
-            "4. حس اعتماد و اطمینان را منتقل کن.\n"
-            "5. در پایان به کاربر بگو که آماده‌ای هر کمکی که لازم دارد را انجام بدهی.\n"
-            f"{OUTPUT_HTML}"
-        )
-
-    return Task(
-        description=description,
-        agent=greeting_responder_agent,
-        expected_output="متن HTML خام"
-    )
 
 
 def help_internet_task(user_message):
@@ -65,9 +34,8 @@ def help_internet_task(user_message):
             "یک پاسخ دوستانه و راهنمایی دقیق در زمینه اینترنت "
             "یا اگر سوال خارج از موضوع بود، بگوید که فقط در اینترنت راهنمایی می‌کنید."
             f"{OUTPUT_HTML}"
-        )
-        ,
-        agent=help_internet_agent,
+        ),
+        agent=support_agent,
         expected_output="متن HTML خام"
     )
 
@@ -89,9 +57,7 @@ def create_context_switch_task(user_message: str, state: str, last_ai_message: s
             "حتما ترتیب زیر را رعایت کن:"
             " 1- اگر network_status = 'offline' بود کاربر در حالت آفلاین قرار داد و باید مودم بررسی شود و خروجی check_modem است."
             "2- اگر modem_status='off' بود باید مودم روشن شود و خروجی  turn_on_modem است."
-            # "3- اگرmodem_on_know='no' یعنی کاربر از چگونگی روشن کردن مودم اطلاعی ندارد و خروجی education_turn_on_modem است."
             "4- اگر modem_status='on' بود باید تنظیمات مودم مورد بررسی قرار گیرد و خروجی  setting_modem است."
-            # "5- اگر modem_config_know='no' یعنی کاربر اطلاع از چگونگی دسترسی به تنظیمات مودم ندارد و خروجی education_setting_modem است."
             "6- اگر modem_config='error' یعنی تنظیمات مودم مشکل دارد و خروجی edit_setting_modem است."
             "7- اگر modem_config='ok' یعنی تنظیمات مودم بدون مشکل است و خروجی return_operator است."
             " 8- در غیر این صورت، خروجی 'unknown' است."

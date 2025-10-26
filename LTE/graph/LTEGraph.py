@@ -1,11 +1,11 @@
 from langgraph.graph import StateGraph, END
-from shabak.LTE.general.tools import clean_and_load_json, execute_stored_procedure, make_message, extract_json_from_text, run_task_as_crew, save_state
+from LTE.general.tools import clean_and_load_json, execute_stored_procedure, make_message, extract_json_from_text, run_task_as_crew, save_state
 from typing import TypedDict, Optional, List, Dict, Any
 import traceback
 import re
 from rapidfuzz import fuzz
 import json
-from shabak.LTE.task.LTETask import create_support_switch_task, LTE_detect_task, return_operator_task, edit_setting_modem_task, \
+from LTE.task.LTETask import create_support_switch_task, LTE_detect_task, return_operator_task, edit_setting_modem_task, \
     setting_modem_task, turn_on_modem_task, check_modem_task, \
     unknown_task, create_detect_user_info_task, create_display_user_info_task, \
     help_internet_task, \
@@ -14,8 +14,7 @@ from shabak.LTE.task.LTETask import create_support_switch_task, LTE_detect_task,
     collect_user_info_task
 import asyncio
 import os
-
-from shabak.LTE.general.socket_instance import sio
+from socket_instance import sio
 
 INTENTS = [
     "support",
