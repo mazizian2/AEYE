@@ -11,7 +11,11 @@
       "details": [
       ]
     },
-    "orders": []
+    "orders": [],
+    "accountInfo": {},
+    "accounts": [],
+    "selectAccount": [],
+    "problems": []
   },
   "history_suggestion": [],
   "messages": [],

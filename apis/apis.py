@@ -1,10 +1,10 @@
 import requests
-def customer_search(
-        username: str | None = None,
-        mobile: str | None = None,
-        melicode: str | None = None,
-        lastname: str | None = None,
-        timeout: float = 10.0
+def customer_search(info:dict[str,str],
+        # username: str | None = None,
+        # mobile: str | None = None,
+        # melicode: str | None = None,
+        # lastname: str | None = None,
+    timeout: float = 10.0
 ) -> dict:
     url = "https://lte.shabakieh.com/webservice/rest/customer_search"
     headers = {
@@ -17,14 +17,14 @@ def customer_search(
         "login_password": "Dehdar123!@#",
     }
 
-    if username:
-        data["username"] = username
-    if mobile:
-        data["mobile"] = mobile
-    if melicode:
-        data["melicode"] = melicode
-    if lastname:
-        data["lastname"] = lastname
+    if info["username"]:
+        data["username"] = info["username"]
+    if info["mobile"]:
+        data["mobile"] = info["mobile"]
+    if info["melicode"]:
+        data["melicode"] = info["melicode"]
+    if info["lastname"]:
+        data["lastname"] =  info["lastname"]
 
     try:
         resp = requests.post(url, data=data, headers=headers, timeout=timeout)

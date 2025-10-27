@@ -1,8 +1,10 @@
-from fastapi import FastAPI,Request
+from fastapi import FastAPI, Request
 import socketio
 from pydantic import BaseModel
-from general.tools import (extract_min_max,filter_by_date,clean_and_load_json,execute_stored_procedure,create_message,load_latest_state)
-from graph.SHGraph import build_graph
+from general.tools import (extract_min_max, filter_by_date, clean_and_load_json, execute_stored_procedure,
+                           create_message, load_latest_state)
+from graph.SHGraph import build_graph, handle_follow_up_buy
+from apis.apis import customer_search
 from socket_instance import sio
 from general.State import ChatState
 from general.state_manager import save_state, load_latest_state
@@ -14,13 +16,17 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-
 app = FastAPI(title="پشتیبانی اتوماسیون اداری")
 app.mount("/assets", StaticFiles(directory="assets"), name="assets")
+
+
 class Message(BaseModel):
     content: str
+
+
 views = Jinja2Templates(directory="views")
 sio_app = socketio.ASGIApp(sio, other_asgi_app=app)
+
 
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
@@ -28,8 +34,8 @@ def read_root(request: Request):
 
 
 @app.post("/langchain-sample4/")
-async def process_message(request: Request,message: Message):
-    print("coll sample4",message)
+async def process_message(request: Request, message: Message):
+    print("coll sample4", message)
     # print(pyodbc.drivers())
     # server = '185.237.85.3'
     # database = 'ICA_DatacenterNew'
@@ -37,9 +43,8 @@ async def process_message(request: Request,message: Message):
     # password = 'data3755'
 
     # بدون پارامتر
-    rows = execute_stored_procedure( 'B_SefareshList_Sel',[0,0])
+    rows = execute_stored_procedure('B_SefareshList_Sel', [0, 0])
     # json_result = execute_stored_procedure(server, database, username, password, 'Robo_User',[3132685653])
-
 
     # print(json_result)
     # cm = ChromaManager("user_messages3")
@@ -92,30 +97,34 @@ async def process_message(request: Request,message: Message):
     # }, room="mehdi")
     # print("state:",state)
     # result = graph.invoke(state)
-    json_rows=clean_and_load_json(rows)
-    filter_row_by_date=filter_by_date(json_rows)
-    extract=extract_min_max(filter_row_by_date)
-    print("row:",len(filter_row_by_date))
-    print("row:",filter_row_by_date)
-    print("row:",extract)
-    return {"response":filter_row_by_date}
+    json_rows = clean_and_load_json(rows)
+    filter_row_by_date = filter_by_date(json_rows)
+    extract = extract_min_max(filter_row_by_date)
+    print("row:", len(filter_row_by_date))
+    print("row:", filter_row_by_date)
+    print("row:", extract)
+    return {"response": filter_row_by_date}
+
 
 # اتصال کاربران
 @sio.event
 async def connect(sid, environ):
     print(f"🔌 Client connected: {sid}")
 
+
 @sio.event
 async def disconnect(sid):
     print(f"❌ Client disconnected: {sid}")
 
+
 # جوین شدن به Room
 @sio.event
 async def join(sid, data):
-    print("join",data)
+    print("join", data)
     room = data["room"]
     await sio.enter_room(sid, room)
     await sio.emit("message", f"🔔 A new user joined {room}", room=room)
+
 
 # دریافت پیام
 # @sio.event
@@ -133,6 +142,31 @@ async def join(sid, data):
 #     print("state:",state)
 #     result = await graph.ainvoke(state)
 #     print("print",result)
+@app.get("/pay", response_class=HTMLResponse)
+async def pay():
+    latest_state = load_latest_state()
+    state: ChatState = dict(latest_state)
+    state['userInfo']['orders'][0]['status'] = 'پرداخت موفق'
+    state['next_node'] = ""
+    save_state(state)
+
+    await  handle_follow_up_buy(state)
+    return """
+        <html>
+            <body>
+                <h2>پرداخت موفق! سفارش با موفقیت ثبت شد.</h2>
+          
+            </body>
+        </html>
+    """
+
+
+@app.get("/getUser")
+def getUser():
+    result= customer_search({'lastname': 'یییاا', 'username': '', 'mobile': '', 'melicode': ''})
+    return result['result']
+
+
 @sio.event
 async def message(sid, data):
     print("message", data)
@@ -140,12 +174,13 @@ async def message(sid, data):
     msg = data["msg"]
     latest_state = load_latest_state()
     print(latest_state)
+    print('message route>>>>>>>>>>>>>>>>>')
     state: ChatState = dict(latest_state)
-    message=create_message("user",msg)
+    message = create_message("user", msg)
     await sio.emit("room_mehdi", message, room="mehdi")
     state["messages"].append(message)
-    state['input']=msg
+    state['input'] = msg
     save_state(state)
     graph = build_graph()
     result = await graph.ainvoke(state)
-    print("result:",result)
+    print("result:", result)
