@@ -2,7 +2,7 @@ from crewai import Task
 import json
 from agent.SHAgent import greeting_responder_agent, combined_need_agent, buy_create_json_agent, buy_responder_agent, \
     objection_handler_agent, context_switch_agent, register_order_json_agent, register_order_agent, \
-    user_info_collector_agent, user_info_json_agent, unknown_agent, responder_question_suggest_agent
+    user_info_collector_agent, user_info_json_agent, unknown_agent, responder_question_suggest_agent, payment_agent
 from general.tools import OUTPUT_HTML, extract_unique_values
 
 with open("assets/json/internet_plans.json", "r", encoding="utf-8") as f:
@@ -15,11 +15,19 @@ INTENTS = [
     "extract_json_buy",
     "service_suggestion_buy",
     "answer_question_service_suggestion",
-    "set_history_suggestion"
+    "set_history_suggestion",
     "objection_buy",
     "register_order",
-    "extract_user_info_json"
+    "extract_user_info_json",
+    "payment",
     "follow_up_buy",
+    "support",
+    "ask_problem",
+    "set_problem",
+    "get_info_account",
+    "extract_json_account",
+    "ask_witch_account",
+    "extract_select_account",
     "unknown"
 ]
 
@@ -29,33 +37,51 @@ def context_switch_task(user_message: str, state: dict, last_ai_message: str, as
     history_suggestion = state.get("history_suggestion")
     previous_intents = state.get('intents', [])
     next_node = state.get('next_node', 'none')
+    info = state.get('userInfo').get('info')
+    accounts = state.get('userInfo').get('accounts')
+    problems = state.get('userInfo').get('problems')
+    selectedAccount = state.get('userInfo').get('selectAccount')
     return Task(
         description=(
             "You must decide which path the new user message belongs to based on the list of previous intents and the current message.\n"
             f"List of possible paths: {', '.join(INTENTS)}\n\n"
             f"Previous intents: {previous_intents}\n"
             f"Current path (next_node): {next_node}\n"
+            f"User info (if available): {info}\n"
             f"Last AI message (if available): {last_ai_message if last_ai_message else 'none'}\n"
             f"Suggested services (if available): {history_suggestion}\n"
             f"New user message: {user_message}\n\n"
             f"User required values: {state.get('userInfo', {}).get('needs', {})}\n\n"
+            f"User accounts (if available): {accounts}\n"
+            f"User account selected (if available): {selectedAccount}\n"
+            f"User problems (if available): {problems}\n"
+
             "Rules of detection:\n"
             "- If services were previously suggested (history_suggestion exists) and the new message asks about those services, output must be 'answer_question_service_suggestion'.\n"
             "- If the message continues the previous intent or includes phrases like 'explain more', 'I didn't understand', output should be the same previous intent.\n"
             "- If the user greets, output should be 'greeting'.\n"
             "- If the user asks about the brand or responsibilities of the assistant, output should be 'greeting'.\n"
             "- If the message includes both greeting and a service purchase need, priority goes to service purchase.\n"
-            "- If the user expresses a need to buy a service but doesn’t specify the type, output must be 'express_need_buy'.\n"
-            "- If the user expresses a need to buy a service and gives details like type, speed, budget, or features, output must be 'extract_json_buy'.\n"
-            "- If the new message includes more details about the purchase need (like specifying LTE, ADSL, etc.), even if one word, and the last AI message was about service types, output must be 'extract_json_buy'.\n"
+            "- If the new message includes more details about the purchase need (like specifying LTE, ADSL, etc.), **or includes a selector word like 'the last one', 'the first one', 'آخری', 'اولی', 'همون' referring to a service type**, even if one word, and the last AI message was about service types, **and history_suggestion is empty**, output must be 'extract_json_buy'."
+            # "- If the user message only contains the name of a service type (like LTE, ADSL, VDSL, TD-LTE, Fiber), even a single word, the output must be 'extract_json_buy'.\n"
+            # "- If the user expresses a need to buy a service but doesn’t specify the type, output must be 'express_need_buy'.\n"
+            "- If the user expresses a need to buy a service but doesn’t specify the type, OR if they only ask about the available service types (e.g., 'What services do you have?' or 'Do you offer ADSL service?'), output must be 'express_need_buy'."
+            # "- If the user expresses a need to buy a service and gives details like type, speed, budget, or features, output must be 'extract_json_buy'.\n"
+            "- If the user expresses a need to buy a service and provides details like type, speed, budget, or features, OR implicitly signals readiness to hear options based on their specific needs, output must be 'extract_json_buy'."
             "- If the user asks for service suggestions and is ready to hear options, output must be 'extract_json_buy'.\n"
             "- If the user objects or expresses concern about price or quality of a service, output must be 'extract_json_buy'.\n"
-            "- If the user confirms or selects one of the suggested services, even with a short message, and the last AI message listed service options, output must be 'register_order'.\n"
+            "- **Only if** Suggested services (history_suggestion) is not empty and user confirms or selects one of the suggested services..."
             "- If the user shares personal info like name or phone number, output must be 'extract_user_info_json'.\n"
+            "-If none of the values in (info) were empty, and orders also had at least one item, and the status of that item had the value 'payment successful', and the previous node was 'payment', the output must be follow_up_buy."
+            "- If the topic of the last AI message is about obtaining account information (such as username, mobile number, national ID, or last name) AND the user's message contains at least one piece of account information (even a last name like 'دهدار'), output must be 'extract_json_account'. This rule has priority over others.\n"
+            "- If the meaning of the user's message is support :\n"
+            "    - If the user explicitly states a problem (like مشکل، خرابی، قطعی, وصل نمی‌شود), output must be 'set_problem'.\n"
+            "    - Otherwise , output must be 'support'.\n"
             "- For messages about service types:\n"
             "  - If the last AI message contained service suggestions based on user need, output must be 'extract_json_buy'.\n"
             "  - Otherwise, output must be 'express_need_buy'.\n"
             "- If none of the rules apply, output 'unknown'.\n\n"
+            "- اگر مفهوم پیام کاربر مربوط به مسائل پشتیبانی ( نیاز به پشتیبانی، خرابی سرویس، قطعی و...) باشد خروجی باید support باشد\n"
             "⚠️ Important Notes:\n"
             "- Detection must consider conversation context.\n"
             "- Continuity of topic matters in choosing the intent.\n"
@@ -88,7 +114,9 @@ def create_greeting_response_task(user_message: str, ai_message: None, user_info
             "- The response must be returned as **clean raw HTML**.\n"
             "- Avoid repetitive content and robotic phrases.\n"
             "- Keep the message concise but meaningful.\n\n"
+            "The answers must be in Persian, without exception."
             f"{OUTPUT_HTML}"
+
         ),
 
         agent=greeting_responder_agent,
@@ -124,6 +152,7 @@ def create_express_need_buy_response_task(user_message, state=dict):
             "- Avoid greetings or small talk if the user didn’t start with one. Do NOT use: "
             "greetings, introductions, jokes, emojis, or generic phrases like ‘How can I "
             "help you today?’\n\n"
+            "The answers must be in Persian, without exception."
             f"{OUTPUT_HTML}"
         ),
 
@@ -159,10 +188,29 @@ def create_json_need_buy_response_task(user_message, last_ai_message, state=None
             "- Merge new values with previous selections from 'previous_json', avoiding duplicates.\n"
             "- If the user explicitly rejects or limits any previous selection, remove only that specific item.\n"
             "- If the user provides no features or details, leave 'details' as an empty list.\n"
-            "- If the user provides no service type, include all items from typeService in 'type'.\n\n"
+            # "- If the user provides no service type, include all items from typeService in 'type'.\n\n"
+            " If the user provides no service type **and does not use a sequential reference (per rule 5)**, include all items from typeService in 'type'.\n\n"
             "3. If the message includes general terms matching multiple typeService items (e.g., 'LTE' or 'server'), include all related items in the output.\n"
             "4. If the user does not specify a service but mentions its use case, choose the best matching service features from services_data for 'details'. If no service type is mentioned, include all typeService in 'type'; otherwise, only the mentioned service.\n"
-            "7. Special rule for handling objections or adding constraints to previous user needs:\n"
+            "5. Selection guidelines (High Priority):\n"
+            "- Identify the intended service from `last_ai_message` or `history_suggestion`.\n"
+            "- Direct selection: If the user mentions the exact service name or unique details, select that service.\n"
+            "- **Sequential references (Very Important):** If the user uses a sequential reference (e.g., 'اولی' (first), 'دومی' (second), 'آخری' (last), 'یکی مونده به آخری' (second to last), ...):\n"
+            "    **a.** **Parse the list of offered services** from the `last_ai_message` (e.g., from `<ul><li>` tags or other list formats).\n"
+            "    **b.** Calculate the index based on the formula:\n"
+            "        * Positive order: 'اولی' (1), 'دومی' (2), ... → `index = n-1`\n"
+            "        * Negative order: 'آخری' (1st from end), 'دومی از آخر' (2nd from end), ... → `index = -n`\n"
+            "    **c.** **Extract the service name** from the parsed list using this index.\n"
+            "    **d.** Set the 'type' list to contain **only** this extracted service name. (Example: If 'آخری' (last) refers to 'Adsl', the output must be `{'type': ['Adsl']}`).\n"
+            "    **e.** This rule **overrides** the default behavior in rule 2. Do not add all services if a sequential reference is successfully resolved.\n\n"
+            # "5.Selection guidelines:\n"
+            # "- Identify the intended service from last_ai_message.\n"
+            # "- Direct selection: If the user mentions the exact service name or unique details, select that service.\n"
+            # "- Sequential references:\n"
+            # "    * Positive order: «اولی», «دومی», «سومی», ... → index = n-1\n"
+            # "    * Negative order: «آخری», «یکی مونده به آخری», «دومی از آخر», ... → index = -n\n"
+            # "    * General formula: index = number-1 if positive, index = -number_from_end if negative\n"
+            "6. Special rule for handling objections or adding constraints to previous user needs:\n"
             "If services were previously suggested and history_suggestion is not empty, take the last JSON from history_suggestion. If the user objects to or adds a constraint on a feature (e.g., price, speed, volume, ping):\n"
             "- Identify the feature in question.\n"
             "- If the feature is numeric (price, volume, speed, ping):\n"
@@ -180,9 +228,17 @@ def create_json_need_buy_response_task(user_message, last_ai_message, state=None
             "      'Static IP'\n\n"
             "- Always preserve previous 'details' and append new features unless explicitly negated.\n"
             "Very important: Only check the feature that was objected to or constrained, not other features.\n\n"
-            "8. Avoid repetition and maintain logical order.\n"
-            "9. Output must be only two valid Python lists, without extra text or explanation.\n"
-            "10. Only extract service titles for 'type' and standard expressions for 'details'.\n\n"
+            "7. Avoid repetition and maintain logical order.\n"
+            "8. Output must be only two valid Python lists, without extra text or explanation.\n"
+            "9. Only extract service titles for 'type' and standard expressions for 'details'.\n\n"
+            "10. Special rules for gaming or new needs:\n"
+            "- If the user explicitly mentions a new need (e.g., 'I need to play games'):\n"
+            "  → Add all features suitable for that use case to 'details'.\n"
+            "- If the user only asks for clarification, follow-up, or continuation (e.g., 'What else do you have?', 'Just these?'):\n"
+            "  → Do not clear or modify 'details'; keep previous selections.\n"
+            "- Always merge new features with previous ones, avoiding duplicates.\n"
+            "- Only apply changes or constraints if the user explicitly requests it; otherwise preserve all previous 'details'.\n"
+
             "Example output:\n"
             "{\n"
             "  'type': ['lte-MCI', 'lte-Irancell'],\n"
@@ -206,8 +262,7 @@ def create_service_suggestion_response_task(user_message, user_info=None, user_n
             "Only propose options that are relevant from the available services.\n"
             "Response guidelines:\n"
             "1. The first sentence of your answer should start with a sentence like:\n"
-            "Based on the needs you have mentioned.\n"
-            "Avoid phrases like 'I understand' or 'This is suitable for you.'\n"
+            "بر اساس نیازهایی که ذکر کرده‌اید، ..."
             "2. Only suggest relevant services from the available ones.\n"
             "3. Explain why each service is suitable (logical reasoning + real value).\n"
             "4.If 2 or more services match the user's needs, list every single suitable service. "
@@ -225,6 +280,7 @@ def create_service_suggestion_response_task(user_message, user_info=None, user_n
             "  'Which services would you like me to activate?'\n"
             "  'I can also find a better suggestion if you specify the exact features you want.'\n"
             "⚠️ If the user has not greeted, do not include greetings, small talk, emojis, or general phrases like 'We are at your service.' Respond only if the user greets.\n"
+            "The answers must be in Persian, without exception."
             f"{OUTPUT_HTML}"
         ),
 
@@ -292,7 +348,7 @@ def create_answer_service_suggestion_response_task(user_message, state=None):
             "   - Do NOT suggest any new services.\n"
             "   - Do NOT provide general advice unrelated to history_suggestion.\n"
             "   - Provide concise, clear, and factual information relevant to the question.\n"
-                        "Selection guidelines:\n"
+            "Selection guidelines:\n"
             "3 Identify the intended service from history_suggestion.\n"
             "- Direct selection: If the user mentions the exact service name or unique details, select that service.\n"
             "- Sequential references:\n"
@@ -301,6 +357,7 @@ def create_answer_service_suggestion_response_task(user_message, state=None):
             "    * General formula: index = number-1 if positive, index = -number_from_end if negative\n"
             "4. If the question cannot be answered from history_suggestion, politely indicate that.\n"
             "5. Tone: instructive, polite, clear. Avoid repetition, filler, greetings, jokes\n\n"
+            "The answers must be in Persian, without exception."
             f"{OUTPUT_HTML}"
         ),
         agent=responder_question_suggest_agent,
@@ -311,7 +368,9 @@ def create_answer_service_suggestion_response_task(user_message, state=None):
 def register_order_json_task(user_message, state=None):
     assistant_messages = [m["content"] for m in state.get("messages", []) if m.get("role") == "assistant"]
     history = state.get("history_suggestion")
+    orders = state.get("userInfo").get("orders")
     history_suggestion = history[-1]
+    print('last of history_suggestion is>>>>', history_suggestion)
     return Task(
         description=(
             f"User message: {user_message}\n"
@@ -406,8 +465,9 @@ def register_order_response_task(user_message, state=None):
             "Example response: 'Thank you for your purchase! You have ordered: [cart summary]. "
             "We appreciate your trust and look forward to seeing you again!'\n"
             "⚠️Prohibited: greetings, small talk, self-introduction, jokes.\n"
-
+            "The answers must be in Persian, without exception."
             f"{OUTPUT_HTML}"
+
         ),
 
         agent=register_order_agent,
@@ -437,7 +497,7 @@ def user_info_collector_response_task(user_message, state=None):
             "4. Avoid asking additional or irrelevant questions.\n"
             "5. Tone: polite, friendly, and clear.\n"
             "⚠️ Forbidden: greetings, small talk, self-introduction, jokes, emojis, or generic sentences like 'we are at your service'.\n"
-
+            "The answers must be in Persian, without exception."
             f"{OUTPUT_HTML}"
         ),
         agent=user_info_collector_agent,
@@ -473,6 +533,38 @@ def user_info_json_task(user_message, state=None):
     )
 
 
+def payment_task(user_message, state=None):
+    order = state["userInfo"]['orders'][-1]
+    info = state["userInfo"]['info']
+    return Task(
+        description=(
+            f"User message: {user_message}\n"
+            f"User order: {order}\n"
+            f"User info: {info}\n\n"
+            "Response Guidelines:\n"
+            "1. Start with a warm, professional, and respectful greeting that addresses the user by name, "
+            "and thank them for their order.\n"
+            "2. Provide a short summary of the services or products in the user's cart.\n"
+            "3. Clearly state that to finalize the order, they need to proceed with the payment using "
+            "the link below:\n"
+            '<a href="http://127.0.0.1:8000/pay" target="_blank">Click here to complete your payment</a>\n'
+            "4. Show the total price including a 10% tax (add 10% to the original order price and display it clearly).\n"
+            "5. Encourage the user to complete the payment to activate and finalize their order.\n"
+            "6. The output should be raw HTML text only—no markdown, no fake data, and no fake links. "
+            "Use the provided payment link exactly as given.\n\n"
+            "Tone Requirements:\n"
+            "- Friendly and professional\n"
+            "- Clear and encouraging\n"
+            "- Trustworthy and helpful\n"
+            "The answers must be in Persian, without exception."
+            "⚠️Prohibited: greetings, small talk, self-introduction, jokes.\n"
+
+        ),
+        agent=payment_agent,
+        expected_output="Raw HTML text"
+    )
+
+
 def unknown_response_task(user_message):
     return Task(
         description=(
@@ -482,11 +574,11 @@ def unknown_response_task(user_message):
             "   b. Ask the user to explain their goal or need more precisely so you can guide them better."
             "2. Always maintain a polite, clear, and friendly tone in your response."
             "⚠️ These are prohibited: greetings, small talk, introductions, jokes, emojis, or general phrases like 'we are at your service'.\n"
-
+            "The answers must be in Persian, without exception."
             f"{OUTPUT_HTML}"
         ),
 
         agent=unknown_agent,
-        expected_output="متن HTML خام"
+        expected_output="Raw HTML text"
 
     )

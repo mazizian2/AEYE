@@ -71,9 +71,7 @@
       "date_service_start_fa": "1400-1-25 00:00",
       "date_service_expire_fa": "1404-10-10 23:00"
     },
-    "problems": [
-      "اینترنت قطع است"
-    ]
+    "problems": []
   },
   "messages": [
     {
@@ -102,7 +100,9 @@
     }
   ],
   "history_suggestion": [],
-  "intents": [],
+  "intents": [
+    "set_problem"
+  ],
   "history_intent": [],
-  "next_node": ""
+  "next_node": "set_problem"
 }

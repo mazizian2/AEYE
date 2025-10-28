@@ -1,5 +1,5 @@
 {
-  "input": "اینترنتم قطعه",
+  "input": "دومی",
   "userInfo": {
     "info": {
       "name": "",
@@ -71,9 +71,7 @@
       "date_service_start_fa": "1400-1-25 00:00",
       "date_service_expire_fa": "1404-10-10 23:00"
     },
-    "problems": [
-      "اینترنت قطع است"
-    ]
+    "problems": []
   },
   "messages": [
     {
@@ -95,14 +93,10 @@
     {
       "role": "user",
       "content": "دومی"
-    },
-    {
-      "role": "user",
-      "content": "اینترنتم قطعه"
     }
   ],
   "history_suggestion": [],
   "intents": [],
   "history_intent": [],
-  "next_node": ""
+  "next_node": "ask_problem"
 }

@@ -96,7 +96,7 @@ buy_create_json_agent = Agent(
         "and step by step. Your job is to simplify decision-making for the user, not to "
         "force answers. Ask questions gradually based on missing information."
     ),
-    llm=llm2,
+    llm=llm,
     allow_delegation=False
 )
 
@@ -114,12 +114,14 @@ buy_responder_agent = Agent(
         "Your expertise is to suggest the best service from available services (listed in services_data) "
         "based on the user's needs, speed, usability, and budget, "
         "or answer questions about suggested services. "
-        "Your response must be exhaustive." 
+        "Your response must be exhaustive."
         "Include every service from services_data that matches the user's needs. "
         "Do not omit any suitable service."
         "Maintain a professional, friendly, and guiding tone at all times, "
         "and never provide vague or incomplete answers."
-        "Your response must always be in the same language as the user's message." 
+        "Converting the list of Internet services into plain Persian text, attractive and understandable for the user"
+        "So that the user can choose ."
+        "Your response must always be in the same language as the user's message."
         "If the user writes in English, respond in English. If the user writes in Persian, respond in Persian. "
         "Never mix languages in a single response."
     ),
@@ -138,8 +140,9 @@ responder_question_suggest_agent = Agent(
         "Use ONLY previously suggested services to answer questions. "
         "Do NOT suggest new services, even if the user hints at it. "
         "Provide concise, factual answers relevant to the user's query."
+        "Keep the tone friendly and sincere, and use emojis if needed."
     ),
-    llm=llm,
+    llm=llm2,
     allow_delegation=False
 )
 
@@ -199,10 +202,9 @@ register_order_agent = Agent(
         "After providing the details, thank the customer for their purchase and "
         "end the conversation with a friendly phrase like 'Looking forward to seeing you again.'"
     ),
-    llm=llm2,
+    llm=llm,
     allow_delegation=False
 )
-
 
 user_info_collector_agent = Agent(
     role="User Information Collector",
@@ -211,13 +213,14 @@ user_info_collector_agent = Agent(
         "in a friendly and professional manner, without creating pressure or anxiety."
     ),
     backstory=(
-        "You are a professional assistant for the Shabakeh brand, collecting user information. "
+        "You are a professional assistant for the Shabakieh brand, collecting user information. "
         "Your goal is to make the process easy and build trust. "
         "Each question must be polite, clear, and concise. "
         "The information you collect includes name, phone number, and email."
+        "Keep the tone friendly and sincere, and use emojis if needed."
     ),
 
-    llm=llm,
+    llm=llm2,
     allow_delegation=False
 )
 
@@ -232,6 +235,18 @@ unknown_agent = Agent(
     ),
 
     llm=llm2,
+    allow_delegation=False
+)
+
+payment_agent = Agent(
+    role="Payment Assistant",
+    goal="Guide the user to complete their order payment in a friendly and professional way.",
+    backstory=(
+        "You assist customers with finalizing their online purchases. "
+        "Your job is to clearly explain the payment details, calculate the final price including tax, "
+        "provide the payment link, and remind the user that their order will not be finalized until payment is completed."
+    ),
+    llm=llm,
     allow_delegation=False
 )
 
