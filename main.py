@@ -1,7 +1,11 @@
-from fastapi import FastAPI,Request
+from dotenv import load_dotenv
+
+load_dotenv()
+from fastapi import FastAPI, Request
 import socketio
 from pydantic import BaseModel
-from general.tools import (extract_min_max,filter_by_date,clean_and_load_json,execute_stored_procedure,create_message,load_latest_state)
+from general.tools import (extract_min_max, filter_by_date, clean_and_load_json, execute_stored_procedure,
+                           create_message, load_latest_state)
 from graph.SHGraph import build_graph
 from socket_instance import sio
 from general.State import ChatState
@@ -11,25 +15,55 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 import sys
 import os
+import json
+from RAG.tools import json_to_docs_internet,answer_with_ai, ask_faiss_question, set_faiss_db_from_json
+from langchain.schema import Document
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-
 app = FastAPI(title="پشتیبانی اتوماسیون اداری")
 app.mount("/assets", StaticFiles(directory="assets"), name="assets")
+
+
 class Message(BaseModel):
     content: str
+
+
 views = Jinja2Templates(directory="views")
 sio_app = socketio.ASGIApp(sio, other_asgi_app=app)
+
 
 @app.get("/", response_class=HTMLResponse)
 def read_root(request: Request):
     return views.TemplateResponse("index.html", {"request": request, "name": "کاربر"})
 
 
+@app.get("/ask_rag")
+async def ask_rag(query: str):
+    # query از URL گرفته می‌شود
+    faiss_results = ask_faiss_question(
+        db_name="internet_services",
+        query=query
+    )
+    answer = answer_with_ai(faiss_results, query)
+    return {"response": answer}
+@app.get("/set_rag")
+async def set_rag():
+    with open("lte.json", "r", encoding="utf-8") as f:
+        json_data = json.load(f)
+    docs=json_to_docs_internet(json_data)
+    # ساخت یا افزودن داده‌ها به FAISS
+    set_faiss_db_from_json(
+        db_name="internet_services",
+        docs=docs,
+        mode="overwrite"  # 'append' اگر بخواهی به دیتابیس موجود اضافه شود
+    )
+    return {"response": docs}
+
+
 @app.post("/langchain-sample4/")
-async def process_message(request: Request,message: Message):
-    print("coll sample4",message)
+async def process_message(request: Request, message: Message):
+    print("coll sample4", message)
     # print(pyodbc.drivers())
     # server = '185.237.85.3'
     # database = 'ICA_DatacenterNew'
@@ -37,9 +71,8 @@ async def process_message(request: Request,message: Message):
     # password = 'data3755'
 
     # بدون پارامتر
-    rows = execute_stored_procedure( 'B_SefareshList_Sel',[0,0])
+    rows = execute_stored_procedure('B_SefareshList_Sel', [0, 0])
     # json_result = execute_stored_procedure(server, database, username, password, 'Robo_User',[3132685653])
-
 
     # print(json_result)
     # cm = ChromaManager("user_messages3")
@@ -92,30 +125,34 @@ async def process_message(request: Request,message: Message):
     # }, room="mehdi")
     # print("state:",state)
     # result = graph.invoke(state)
-    json_rows=clean_and_load_json(rows)
-    filter_row_by_date=filter_by_date(json_rows)
-    extract=extract_min_max(filter_row_by_date)
-    print("row:",len(filter_row_by_date))
-    print("row:",filter_row_by_date)
-    print("row:",extract)
-    return {"response":filter_row_by_date}
+    json_rows = clean_and_load_json(rows)
+    filter_row_by_date = filter_by_date(json_rows)
+    extract = extract_min_max(filter_row_by_date)
+    print("row:", len(filter_row_by_date))
+    print("row:", filter_row_by_date)
+    print("row:", extract)
+    return {"response": filter_row_by_date}
+
 
 # اتصال کاربران
 @sio.event
 async def connect(sid, environ):
     print(f"🔌 Client connected: {sid}")
 
+
 @sio.event
 async def disconnect(sid):
     print(f"❌ Client disconnected: {sid}")
 
+
 # جوین شدن به Room
 @sio.event
 async def join(sid, data):
-    print("join",data)
+    print("join", data)
     room = data["room"]
     await sio.enter_room(sid, room)
     await sio.emit("message", f"🔔 A new user joined {room}", room=room)
+
 
 # دریافت پیام
 # @sio.event
@@ -141,11 +178,11 @@ async def message(sid, data):
     latest_state = load_latest_state()
     print(latest_state)
     state: ChatState = dict(latest_state)
-    message=create_message("user",msg)
+    message = create_message("user", msg)
     await sio.emit("room_mehdi", message, room="mehdi")
     state["messages"].append(message)
-    state['input']=msg
+    state['input'] = msg
     save_state(state)
     graph = build_graph()
     result = await graph.ainvoke(state)
-    print("result:",result)
+    print("result:", result)
